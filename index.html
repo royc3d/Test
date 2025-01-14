@@ -1,0 +1,65 @@
+
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nadzorna plošča osebnih financ</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Nadzorna plošča osebnih financ</h1>
+    </header>
+    <main>
+        <section class="add-expense">
+            <h2>Dodaj strošek</h2>
+            <form id="expense-form">
+                <label for="description">Opis:</label>
+                <input type="text" id="description" required>
+                <label for="amount">Znesek (€):</label>
+                <input type="number" id="amount" required>
+                <label for="date">Datum:</label>
+                <input type="date" id="date" required>
+                <button type="submit">Dodaj</button>
+            </form>
+        </section>
+
+        <section class="expenses-overview">
+            <h2>Pregled stroškov</h2>
+            <table id="expenses-table">
+                <thead>
+                    <tr>
+                        <th>Opis</th>
+                        <th>Znesek (€)</th>
+                        <th>Datum</th>
+                        <th>Akcija</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Vrstice bodo dodane dinamično -->
+                </tbody>
+            </table>
+        </section>
+
+        <section class="charts">
+            <h2>Grafi porabe</h2>
+            <canvas id="spending-chart"></canvas>
+        </section>
+
+        <section class="data-management">
+            <h2>Uvoz/Izvoz podatkov</h2>
+            <button id="export-data">Izvozi podatke</button>
+            <input type="file" id="import-file" accept=".json">
+            <button id="import-data">Uvozi podatke</button>
+        </section>
+
+        <section class="monthly-report">
+            <h2>Mesečno poročilo</h2>
+            <button id="generate-report">Ustvari poročilo</button>
+            <div id="report-output"></div>
+        </section>
+    </main>
+    <script src="script.js"></script>
+</body>
+</html>
