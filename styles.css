@@ -1,0 +1,112 @@
+
+body {
+    font-family: 'Roboto', sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f4f9;
+    color: #333;
+}
+
+header {
+    background-color: #6200ea;
+    color: white;
+    padding: 1.5em 1em;
+    text-align: center;
+    font-size: 1.8em;
+    font-weight: bold;
+}
+
+main {
+    padding: 2em;
+    display: grid;
+    gap: 1.5em;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.card {
+    background: white;
+    padding: 1.5em;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+}
+
+h2 {
+    font-size: 1.5em;
+    color: #6200ea;
+    margin-bottom: 1em;
+}
+
+form label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 0.5em;
+    color: #555;
+}
+
+form input, form select {
+    width: 100%;
+    padding: 0.8em;
+    margin-bottom: 1em;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1em;
+}
+
+form button {
+    background-color: #6200ea;
+    color: white;
+    padding: 0.8em;
+    border: none;
+    border-radius: 4px;
+    font-size: 1em;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+form button:hover {
+    background-color: #4500b5;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1em;
+}
+
+table thead {
+    background-color: #6200ea;
+    color: white;
+}
+
+table th, table td {
+    text-align: left;
+    padding: 0.8em;
+    border: 1px solid #ddd;
+}
+
+table tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+.btn {
+    background-color: #6200ea;
+    color: white;
+    padding: 0.8em 1.2em;
+    border: none;
+    border-radius: 4px;
+    font-size: 1em;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    margin-top: 0.5em;
+    display: inline-block;
+    text-align: center;
+}
+
+.btn:hover {
+    background-color: #4500b5;
+}
