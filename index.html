@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Beleženje osebnih financ</title>
+  <!-- PWA manifest -->
+  <link rel="manifest" href="manifest.json">
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Dodatni stili: temni način in stil za levi meni -->
+  <style>
+    body.dark-mode {
+      background-color: #121212;
+      color: #e0e0e0;
+    }
+    body.dark-mode .card {
+      background-color: #1e1e1e;
+      color: #e0e0e0;
+    }
+    body.dark-mode .table {
+      color: #e0e0e0;
+    }
+    /* Stil za levi meni */
+    #sidebar .list-group-item.active {
+      background-color: #0d6efd;
+      border-color: #0d6efd;
+    }
+    /* Dodatna pravila za temni način – meni */
+    body.dark-mode .sidebar {
+      background-color: #1e1e1e !important;
+    }
+    body.dark-mode #sidebar .list-group-item {
+      background-color: #1e1e1e;
+      color: #e0e0e0;
+    }
+    body.dark-mode #sidebar .list-group-item:hover {
+      background-color: #333;
+    }
+    body.dark-mode #sidebar .list-group-item.active {
+      background-color: #0d6efd;
+      color: #fff;
+    }
+    /* Skrivanje kategorij, ki jih ne želimo prikazati */
+    .hidden-category {
+      display: none;
+    }
+  </style>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- SheetJS (XLSX) za uvoz/izvoz Excel datotek -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- Google API (za Drive API, če je potrebno) -->
+  <script async defer src="https://apis.google.com/js/api.js" onload="handleClientLoad()"></script>
+  <!-- Google Identity Services (za Sign in with Google) -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+  <!-- Glavni layout: levi meni in glavni vsebinski del -->
+  <div class="container-fluid">
+    <div class="row">
+      <!-- Levi meni -->
+      <nav class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
+        <div class="position-sticky pt-3">
+          <div class="list-group" id="sidebar">
+            <!-- Novi vrstni red -->
+            <a href="#" class="list-group-item list-group-item-action active" data-page="page1">Vnos transakcije</a>
+            <a href="#" class="list-group-item list-group-item-action" data-page="page4">Pregled meseca</a>
+            <a href="#" class="list-group-item list-group-item-action" data-page="page8">Letno poročilo</a>
+            <a href="#" class="list-group-item list-group-item-action" data-page="page2">Vse transakcije</a>
+            <a href="#" class="list-group-item list-group-item-action" data-page="page6">Nastavitve</a>
+          </div>
+        </div>
+      </nav>
+
+      <!-- Glavni vsebinski del -->
+      <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4" id="mainContent">
+        <!-- Obvestilni container -->
+        <div id="notificationContainer"></div>
+
+        <!-- Page 1: Vnos transakcije -->
+        <div id="page1" class="page">
+          <h2 class="mt-3">Vnos transakcije</h2>
+          <div class="card mb-4">
+            <div class="card-header">Dodaj/Uredi transakcijo</div>
+            <div class="card-body">
+              <form id="transactionForm">
+                <input type="hidden" id="transactionId">
+                <div class="row g-3">
+                  <div class="col-md-3">
+                    <label for="date" class="form-label">Datum</label>
+                    <input type="date" class="form-control" id="date" required>
+                  </div>
+                  <div class="col-md-3">
+                    <label for="type" class="form-label">Tip</label>
+                    <select class="form-select" id="type" required>
+                      <option value="prihodek">Prihodek</option>
+                      <option value="odhodki">Odhodki</option>
+                      <option value="investicija">Investicija</option>
+                    </select>
+                  </div>
+                  <div class="col-md-3">
+                    <label for="category" class="form-label">Kategorija</label>
+                    <select class="form-select" id="category" required></select>
+                  </div>
+                  <div class="col-md-3">
+                    <label for="amount" class="form-label">Znesek</label>
+                    <input type="number" class="form-control" id="amount" step="0.01" required>
+                  </div>
+                  <div class="col-12">
+                    <label for="description" class="form-label">Opis</label>
+                    <textarea class="form-control" id="description" rows="2"></textarea>
+                  </div>
+                  <div class="col-12">
+                    <button type="submit" class="btn btn-primary">Shrani</button>
+                    <button type="button" id="cancelEdit" class="btn btn-secondary" style="display:none;">Prekliči urejanje</button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Page 2: Vse transakcije (inline urejanje) -->
+        <div id="page2" class="page" style="display:none;">
+          <h2 class="mt-3">Vse transakcije</h2>
+          <div class="card mb-4">
+            <div class="card-header">Seznam transakcij</div>
+            <div class="card-body">
+              <table class="table table-striped" id="transactionTable">
+                <thead>
+                  <tr>
+                    <th>Datum</th>
+                    <th>Tip</th>
+                    <th>Kategorija</th>
+                    <th>Znesek</th>
+                    <th>Opis</th>
+                    <th>Akcije</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Dinamični vnosi -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Page 4: Pregled meseca -->
+        <div id="page4" class="page" style="display:none;">
+          <h2 class="mt-3">Pregled meseca</h2>
+          <div class="mb-3">
+            <label for="analysisMonth" class="form-label">Izberi mesec in leto</label>
+            <input type="month" id="analysisMonth" class="form-control">
+          </div>
+          <div id="dataAnalysis">
+            <!-- Tukaj bo prikazan seštevek prihodkov, odhodkov in investicij ter tabela odhodkov po kategorijah -->
+          </div>
+          <div class="mt-4">
+            <canvas id="monthlyExpenseChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Page 6: Nastavitve (združene: Uvoz/Izvoz, Brisanje, Google Drive, Urejanje kategorij, izbira teme) -->
+        <div id="page6" class="page" style="display:none;">
+          <h2 class="mt-3">Nastavitve</h2>
+          <!-- Sign in with Google -->
+          <div class="card mb-4">
+            <div class="card-header">Prijava z Google</div>
+            <div class="card-body">
+              <button id="googleSignIn" class="btn btn-outline-primary">Sign in with Google</button>
+            </div>
+          </div>
+          <!-- Uvoz/Izvoz Excel in brisanje podatkov -->
+          <div class="card mb-4">
+            <div class="card-header">Uvoz/Izvoz Excel datoteke in brisanje podatkov</div>
+            <div class="card-body">
+              <div class="mb-3">
+                <label for="excelFile" class="form-label">Import Excel datoteko</label>
+                <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" class="form-control">
+                <small class="text-muted">
+                  Struktura: Datum, Prihodki / Odhodki / Investicija, Znesek, Kategorija, Opis.
+                  <br>(Datumi v obliki dd.mm.yyyy)
+                </small>
+              </div>
+              <button id="exportExcel" class="btn btn-primary mb-2">Export v Excel</button>
+              <hr>
+              <button id="clearAllData" class="btn btn-danger mb-2">Izbriši vse podatke</button>
+            </div>
+          </div>
+          <!-- Urejanje kategorij -->
+          <div class="card mb-4">
+            <div class="card-header">Urejanje kategorij</div>
+            <div class="card-body">
+              <div class="mb-3">
+                <label for="newCategory" class="form-label">Nova kategorija</label>
+                <input type="text" id="newCategory" class="form-control" placeholder="Vnesi kategorijo">
+              </div>
+              <button id="addCategory" class="btn btn-primary mb-3">Dodaj kategorijo</button>
+              <h5>Trenutne kategorije</h5>
+              <ul id="categoryList" class="list-group">
+                <!-- Prikaz kategorij – privzeto le prvih 5 -->
+              </ul>
+              <button id="toggleCategories" class="btn btn-link">Prikaži vse</button>
+            </div>
+          </div>
+          <!-- Tema aplikacije -->
+          <div class="card mb-4">
+            <div class="card-header">Tema aplikacije</div>
+            <div class="card-body">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="themeToggle">
+                <label class="form-check-label" for="themeToggle">Temni način</label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Page 8: Letno poročilo -->
+        <div id="page8" class="page" style="display:none;">
+          <h2 class="mt-3">Letno poročilo</h2>
+          <div class="mb-3">
+            <label for="reportYear" class="form-label">Izberi leto</label>
+            <input type="number" id="reportYear" class="form-control" value="2023" min="2000" max="2100">
+          </div>
+          <button id="generateAnnualReport" class="btn btn-primary mb-3">Prikaži poročilo</button>
+          <div id="annualSummary">
+            <!-- Povzetek: skupaj prihodki, odhodki in investicije -->
+          </div>
+          <div id="annualExpenseTable">
+            <!-- Tabela odhodkov po kategorijah -->
+          </div>
+          <div id="annualIncomeTable">
+            <!-- Tabela prihodkov po kategorijah -->
+          </div>
+          <div class="mt-4">
+            <canvas id="annualChart"></canvas>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS Bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Registracija Service Workerja -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('sw.js').then(function(registration) {
+          console.log('ServiceWorker uspešno registriran, obseg:', registration.scope);
+        }, function(err) {
+          console.log('Registracija ServiceWorkerja ni uspela:', err);
+        });
+      });
+    }
+  </script>
+
+  <!-- Glavna JavaScript logika -->
+  <script>
+    // Uporabimo funkcijo initApp, ki se izvede takoj, če je DOM pripravljen,
+    // sicer dodamo event listener za DOMContentLoaded.
+    function initApp() {
+      /*********************** GLOBALNE SPREMENLJIVKE ***********************/
+      let transactions = [];
+      let editTransactionId = null;
+      let monthlyBudget = 0;
+      let showAllTransactions = false;  // Prikaz samo prvih 5 transakcij
+      let showAllCategories = false;    // Kontrola za prikaz vseh kategorij
+      let googleAccessToken = null;
+      let tokenClient;  // Google Identity Services token client
+
+      const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
+      const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+
+      /*********************** NAVIGACIJA (LEVI MENI) ***********************/
+      document.querySelectorAll('#sidebar a').forEach(link => {
+        link.addEventListener('click', function(e) {
+          e.preventDefault();
+          document.querySelectorAll('#sidebar a').forEach(a => a.classList.remove('active'));
+          this.classList.add('active');
+          const pageToShow = this.getAttribute('data-page');
+          document.querySelectorAll('.page').forEach(page => {
+            page.style.display = (page.id === pageToShow) ? 'block' : 'none';
+          });
+        });
+      });
+
+      /*********************** OBVESTILA ***********************/
+      function showNotification(message, type = 'info') {
+        const container = document.getElementById('notificationContainer');
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'alert alert-' + type + ' alert-dismissible fade show';
+        alertDiv.role = 'alert';
+        alertDiv.innerHTML = message + '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>';
+        container.appendChild(alertDiv);
+        setTimeout(() => {
+          alertDiv.classList.remove('show');
+          alertDiv.classList.add('hide');
+          setTimeout(() => alertDiv.remove(), 500);
+        }, 3000);
+      }
+
+      /*********************** LOCALSTORAGE ***********************/
+      function saveTransactionsToLocalStorage() {
+        localStorage.setItem('transactions', JSON.stringify(transactions));
+      }
+      function loadTransactionsFromLocalStorage() {
+        const stored = localStorage.getItem('transactions');
+        if (stored) transactions = JSON.parse(stored);
+      }
+      function saveBudgetToLocalStorage() {
+        localStorage.setItem('monthlyBudget', monthlyBudget);
+      }
+
+      /*********************** POMOŽNA FUNKCIJA ZA PRETVORBO EXCEL DATUMA ***********************/
+      function excelDateToJSDate(serial) {
+        return new Date(Math.round((serial - 25569) * 86400 * 1000));
+      }
+
+      /*********************** TRANSAKCIJSKA TABELA (PAGE 2) – INLINE UREJANJE ***********************/
+      document.getElementById('transactionTable').addEventListener('click', function(e) {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        if (btn.classList.contains('edit-btn')) {
+          const row = btn.closest('tr');
+          const id = btn.getAttribute('data-id');
+          const tx = transactions.find(t => t.id === id);
+          if (!tx) return;
+          if (row.getAttribute('data-editing') === 'true') return;
+          row.setAttribute('data-editing', 'true');
+          const originalContent = row.innerHTML;
+          row.setAttribute('data-original', originalContent);
+          row.innerHTML = `
+            <td><input type="text" class="form-control form-control-sm edit-date" value="${tx.date}"></td>
+            <td>
+              <select class="form-select form-select-sm edit-type">
+                <option value="prihodek" ${tx.type==='prihodek' ? 'selected' : ''}>Prihodki</option>
+                <option value="odhodki" ${tx.type==='odhodki' ? 'selected' : ''}>Odhodki</option>
+                <option value="investicija" ${tx.type==='investicija' ? 'selected' : ''}>Investicija</option>
+              </select>
+            </td>
+            <td>
+              <select class="form-select form-select-sm edit-category"></select>
+            </td>
+            <td><input type="number" class="form-control form-control-sm edit-amount" value="${tx.amount}"></td>
+            <td><input type="text" class="form-control form-control-sm edit-description" value="${tx.description}"></td>
+            <td>
+              <button class="btn btn-sm btn-success save-btn" data-id="${tx.id}">Shrani</button>
+              <button class="btn btn-sm btn-secondary cancel-btn" data-id="${tx.id}">Prekliči</button>
+            </td>
+          `;
+          const categorySelect = row.querySelector('.edit-category');
+          categories.forEach(cat => {
+            const option = document.createElement('option');
+            option.value = cat;
+            option.textContent = cat;
+            if (cat === tx.category) option.selected = true;
+            categorySelect.appendChild(option);
+          });
+        } else if (btn.classList.contains('save-btn')) {
+          const row = btn.closest('tr');
+          const id = btn.getAttribute('data-id');
+          const txIndex = transactions.findIndex(t => t.id === id);
+          if (txIndex === -1) return;
+          const newDate = row.querySelector('.edit-date').value.trim();
+          const newType = row.querySelector('.edit-type').value;
+          const newCategory = row.querySelector('.edit-category').value;
+          const newAmount = parseFloat(row.querySelector('.edit-amount').value);
+          const newDescription = row.querySelector('.edit-description').value;
+          transactions[txIndex].date = newDate;
+          transactions[txIndex].type = newType;
+          transactions[txIndex].category = newCategory;
+          transactions[txIndex].amount = newAmount;
+          transactions[txIndex].description = newDescription;
+          saveTransactionsToLocalStorage();
+          refreshTransactionTable();
+          updateMonthlyOverview();
+          showNotification('Transakcija posodobljena!', 'success');
+        } else if (btn.classList.contains('cancel-btn')) {
+          refreshTransactionTable();
+        } else if (btn.classList.contains('delete-btn')) {
+          const id = btn.getAttribute('data-id');
+          transactions = transactions.filter(t => t.id !== id);
+          saveTransactionsToLocalStorage();
+          refreshTransactionTable();
+          updateMonthlyOverview();
+          showNotification('Transakcija izbrisana!', 'warning');
+        }
+      });
+      function refreshTransactionTable() {
+        const tbody = document.querySelector('#transactionTable tbody');
+        tbody.innerHTML = '';
+        let displayTransactions = transactions;
+        let showToggle = false;
+        if (!showAllTransactions && transactions.length > 5) {
+          displayTransactions = transactions.slice(0, 5);
+          showToggle = true;
+        }
+        displayTransactions.forEach(tx => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${tx.date}</td>
+            <td>${tx.type === 'prihodek' ? 'Prihodki' : (tx.type === 'odhodki' ? 'Odhodki' : 'Investicija')}</td>
+            <td>${tx.category}</td>
+            <td>${tx.amount.toFixed(2)}</td>
+            <td>${tx.description}</td>
+            <td>
+              <button class="btn btn-sm btn-warning edit-btn" data-id="${tx.id}">Uredi</button>
+              <button class="btn btn-sm btn-danger delete-btn" data-id="${tx.id}">Izbriši</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+        if (showToggle) {
+          const tr = document.createElement('tr');
+          const td = document.createElement('td');
+          td.colSpan = 6;
+          const toggleBtn = document.createElement('button');
+          toggleBtn.className = 'btn btn-sm btn-link';
+          toggleBtn.innerText = 'Prikaži več';
+          toggleBtn.addEventListener('click', function() {
+            showAllTransactions = true;
+            refreshTransactionTable();
+          });
+          td.appendChild(toggleBtn);
+          tr.appendChild(td);
+          tbody.appendChild(tr);
+        } else if (showAllTransactions && transactions.length > 5) {
+          const tr = document.createElement('tr');
+          const td = document.createElement('td');
+          td.colSpan = 6;
+          const toggleBtn = document.createElement('button');
+          toggleBtn.className = 'btn btn-sm btn-link';
+          toggleBtn.innerText = 'Prikaži manj';
+          toggleBtn.addEventListener('click', function() {
+            showAllTransactions = false;
+            refreshTransactionTable();
+          });
+          td.appendChild(toggleBtn);
+          tr.appendChild(td);
+          tbody.appendChild(tr);
+        }
+      }
+
+      /*********************** TRANSAKCIJSKI OBRAZEC (PAGE 1) ***********************/
+      document.getElementById('transactionForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const rawDate = document.getElementById('date').value;
+        const date = convertDateISOtoDDMMYYYY(rawDate);
+        const type = document.getElementById('type').value;
+        const category = document.getElementById('category').value;
+        const amount = parseFloat(document.getElementById('amount').value);
+        const description = document.getElementById('description').value;
+        if (editTransactionId) {
+          const tx = transactions.find(t => t.id === editTransactionId);
+          if (tx) {
+            tx.date = date;
+            tx.type = type;
+            tx.category = category;
+            tx.amount = amount;
+            tx.description = description;
+            showNotification('Transakcija posodobljena!', 'success');
+          }
+          editTransactionId = null;
+          document.getElementById('cancelEdit').style.display = 'none';
+        } else {
+          const tx = { id: Date.now().toString(), date, type, category, amount, description };
+          transactions.push(tx);
+          showNotification('Transakcija dodana!', 'success');
+        }
+        saveTransactionsToLocalStorage();
+        refreshTransactionTable();
+        updateMonthlyOverview();
+        if (window.gapi && gapi.auth2 && gapi.auth2.getAuthInstance().isSignedIn.get()) {
+          exportTransactionsToExcelAndUploadToDrive();
+        }
+        this.reset();
+        document.getElementById('transactionId').value = '';
+      });
+
+      /*********************** POMOŽNA FUNKCIJA ZA FORMATIRANJE DATUMA ***********************/
+      function convertDateISOtoDDMMYYYY(dateStr) {
+        const parts = dateStr.split('-');
+        if (parts.length === 3) return parts[2] + "." + parts[1] + "." + parts[0];
+        return dateStr;
+      }
+
+      /*********************** PREGLED MESECA (PAGE 4) ***********************/
+      function updateMonthlyOverview() {
+        let selectedMonth = document.getElementById('analysisMonth').value;
+        if (!selectedMonth) {
+          const now = new Date();
+          selectedMonth = now.toISOString().slice(0,7);
+          document.getElementById('analysisMonth').value = selectedMonth;
+        }
+        const selectedYear = selectedMonth.slice(0,4);
+        const selectedMonthNum = selectedMonth.slice(5,7);
+        let totalIncome = 0, totalExpense = 0, totalInvestment = 0;
+        transactions.forEach(tx => {
+          if (typeof tx.date !== 'string') return;
+          const parts = tx.date.trim().split('.');
+          if (parts.length !== 3) return;
+          const [day, mon, year] = parts;
+          if (year === selectedYear && mon === selectedMonthNum) {
+            if (tx.type === 'prihodek') totalIncome += tx.amount;
+            else if (tx.type === 'odhodki') totalExpense += tx.amount;
+            else if (tx.type === 'investicija') totalInvestment += tx.amount;
+          }
+        });
+        let html = `<h4>Pregled meseca: ${selectedMonth}</h4>`;
+        html += `<div class="row mb-4">`;
+        html += `<div class="col"><h5 style="color: green;">Prihodki: ${totalIncome.toFixed(2)} EUR</h5></div>`;
+        html += `<div class="col"><h5 style="color: red;">Odhodki: ${totalExpense.toFixed(2)} EUR</h5></div>`;
+        html += `<div class="col"><h5 style="color: blue;">Investicije: ${totalInvestment.toFixed(2)} EUR</h5></div>`;
+        html += `</div>`;
+        const expenseByCategory = {};
+        transactions.forEach(tx => {
+          if (typeof tx.date !== 'string') return;
+          const parts = tx.date.trim().split('.');
+          if (parts.length !== 3) return;
+          const [day, mon, year] = parts;
+          if (year === selectedYear && mon === selectedMonthNum && tx.type === 'odhodki')
+            expenseByCategory[tx.category] = (expenseByCategory[tx.category] || 0) + tx.amount;
+        });
+        const sortedExpenseCategories = Object.entries(expenseByCategory).sort((a, b) => b[1] - a[1]);
+        if (sortedExpenseCategories.length > 0) {
+          html += `<h5>Odhodki po kategorijah</h5>`;
+          html += `<table class="table table-sm"><thead><tr><th>Kategorija</th><th>Znesek (EUR)</th></tr></thead><tbody>`;
+          sortedExpenseCategories.forEach(([cat, sum]) => {
+            html += `<tr><td>${cat}</td><td>${sum.toFixed(2)}</td></tr>`;
+          });
+          html += `</tbody></table>`;
+        }
+        document.getElementById('dataAnalysis').innerHTML = html;
+        const labels = sortedExpenseCategories.map(item => item[0]);
+        const dataValues = sortedExpenseCategories.map(item => item[1]);
+        const ctx = document.getElementById('monthlyExpenseChart').getContext('2d');
+        if (window.monthlyChartInstance) window.monthlyChartInstance.destroy();
+        window.monthlyChartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Odhodki po kategorijah',
+              data: dataValues,
+              backgroundColor: 'rgba(255, 0, 0, 0.7)',
+              borderColor: 'rgba(255, 0, 0, 1)',
+              borderWidth: 1
+            }]
+          },
+          options: { indexAxis: 'y', scales: { x: { beginAtZero: true } } }
+        });
+      }
+      document.getElementById('analysisMonth').addEventListener('change', updateMonthlyOverview);
+
+      /*********************** LETNO POROČILO (PAGE 8) ***********************/
+      function updateAnnualReport() {
+        const reportYear = document.getElementById('reportYear').value;
+        if (!reportYear) return;
+        let totalIncome = 0, totalExpense = 0, totalInvestment = 0;
+        transactions.forEach(tx => {
+          if (typeof tx.date !== 'string') return;
+          const parts = tx.date.trim().split('.');
+          if (parts.length !== 3) return;
+          const year = parts[2];
+          if (year === reportYear) {
+            if (tx.type === 'prihodek') totalIncome += tx.amount;
+            else if (tx.type === 'odhodki') totalExpense += tx.amount;
+            else if (tx.type === 'investicija') totalInvestment += tx.amount;
+          }
+        });
+        let html = `<h4>Poročilo za leto: ${reportYear}</h4>`;
+        html += `<table class="table table-sm"><tbody>`;
+        html += `<tr style="color: green;"><td>Prihodki</td><td>${totalIncome.toFixed(2)} EUR</td></tr>`;
+        html += `<tr style="color: red;"><td>Odhodki</td><td>${totalExpense.toFixed(2)} EUR</td></tr>`;
+        html += `<tr style="color: blue;"><td>Investicije</td><td>${totalInvestment.toFixed(2)} EUR</td></tr>`;
+        html += `<tr><td><strong>Neto</strong></td><td><strong>${(totalIncome - totalExpense).toFixed(2)} EUR</strong></td></tr>`;
+        html += `</tbody></table>`;
+        const expenseByCategory = {};
+        transactions.forEach(tx => {
+          if (typeof tx.date !== 'string') return;
+          const parts = tx.date.trim().split('.');
+          if (parts.length !== 3) return;
+          const year = parts[2];
+          if (year === reportYear && tx.type === 'odhodki')
+            expenseByCategory[tx.category] = (expenseByCategory[tx.category] || 0) + tx.amount;
+        });
+        const sortedExpenseCategories = Object.entries(expenseByCategory).sort((a, b) => b[1] - a[1]);
+        if (sortedExpenseCategories.length > 0) {
+          html += `<h5>Odhodki po kategorijah</h5>`;
+          html += `<table class="table table-sm"><thead><tr><th>Kategorija</th><th>Znesek (EUR)</th></tr></thead><tbody>`;
+          sortedExpenseCategories.forEach(([cat, sum]) => {
+            html += `<tr><td>${cat}</td><td>${sum.toFixed(2)}</td></tr>`;
+          });
+          html += `</tbody></table>`;
+        }
+        const incomeByCategory = {};
+        transactions.forEach(tx => {
+          if (typeof tx.date !== 'string') return;
+          const parts = tx.date.trim().split('.');
+          if (parts.length !== 3) return;
+          const year = parts[2];
+          if (year === reportYear && tx.type === 'prihodek')
+            incomeByCategory[tx.category] = (incomeByCategory[tx.category] || 0) + tx.amount;
+        });
+        const sortedIncomeCategories = Object.entries(incomeByCategory).sort((a, b) => b[1] - a[1]);
+        if (sortedIncomeCategories.length > 0) {
+          html += `<h5>Prihodki po kategorijah</h5>`;
+          html += `<table class="table table-sm"><thead><tr><th>Kategorija</th><th>Znesek (EUR)</th></tr></thead><tbody>`;
+          sortedIncomeCategories.forEach(([cat, sum]) => {
+            html += `<tr><td>${cat}</td><td>${sum.toFixed(2)}</td></tr>`;
+          });
+          html += `</tbody></table>`;
+        }
+        document.getElementById('annualSummary').innerHTML = html;
+        const ctx = document.getElementById('annualChart').getContext('2d');
+        if (window.annualChartInstance) window.annualChartInstance.destroy();
+        window.annualChartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: ['Prihodki', 'Odhodki', 'Investicije'],
+            datasets: [{
+              label: 'Letni pregled',
+              data: [totalIncome, totalExpense, totalInvestment],
+              backgroundColor: [
+                'rgba(0, 128, 0, 0.7)',
+                'rgba(255, 0, 0, 0.7)',
+                'rgba(0, 0, 255, 0.7)'
+              ],
+              borderColor: [
+                'rgba(0, 128, 0, 1)',
+                'rgba(255, 0, 0, 1)',
+                'rgba(0, 0, 255, 1)'
+              ],
+              borderWidth: 1
+            }]
+          },
+          options: { scales: { y: { beginAtZero: true } } }
+        });
+      }
+      document.getElementById('generateAnnualReport').addEventListener('click', updateAnnualReport);
+
+      /*********************** UVOZ/IZVOZ EXCEL (DEL NA NASTAVITVE, PAGE 6) ***********************/
+      document.getElementById('excelFile').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          for (let i = 1; i < jsonData.length; i++) {
+            const row = jsonData[i];
+            if (row.length < 4) continue;
+            let [rawDatum, tip, znesek, kategorija, opis] = row;
+            if (typeof opis === "undefined") { opis = ""; }
+            let tipLower = tip.toString().trim().toLowerCase();
+            let type;
+            if (tipLower === "prihodki" || tipLower === "prihodek") {
+              type = "prihodek";
+            } else if (tipLower === "odhodki" || tipLower === "odhodek") {
+              type = "odhodki";
+            } else if (tipLower === "investicija") {
+              type = "investicija";
+            } else if (tipLower.indexOf("/") !== -1) {
+              const parts = tipLower.split("/");
+              for (let part of parts) {
+                part = part.trim();
+                if (part === "prihodki" || part === "prihodek") {
+                  type = "prihodek";
+                  break;
+                } else if (part === "odhodki" || part === "odhodek") {
+                  type = "odhodki";
+                  break;
+                } else if (part === "investicija") {
+                  type = "investicija";
+                  break;
+                }
+              }
+              if (!type) { type = "odhodki"; }
+            } else {
+              type = "odhodki";
+            }
+            const amount = parseFloat(znesek.toString().replace(',', '.'));
+            let formattedDate = "";
+            if (typeof rawDatum === 'number') {
+              let dateObj = excelDateToJSDate(rawDatum);
+              formattedDate = ("0" + dateObj.getDate()).slice(-2) + "." +
+                              ("0" + (dateObj.getMonth() + 1)).slice(-2) + "." +
+                              dateObj.getFullYear();
+            } else {
+              formattedDate = rawDatum.toString().trim();
+            }
+            const tx = {
+              id: Date.now().toString() + i,
+              date: formattedDate,
+              type: type,
+              category: kategorija,
+              amount: amount,
+              description: opis
+            };
+            transactions.push(tx);
+          }
+          saveTransactionsToLocalStorage();
+          refreshTransactionTable();
+          updateMonthlyOverview();
+          showNotification('Transakcije uvožene iz Excel datoteke!', 'success');
+        };
+        reader.readAsArrayBuffer(file);
+      });
+      function exportTransactionsToExcel() {
+        const data = [['Datum', 'Prihodki / Odhodki / Investicija', 'Znesek', 'Kategorija', 'Opis']];
+        transactions.forEach(tx => {
+          let typeStr = "";
+          if (tx.type === 'prihodek') typeStr = "Prihodki";
+          else if (tx.type === 'odhodki') typeStr = "Odhodki";
+          else if (tx.type === 'investicija') typeStr = "Investicija";
+          data.push([tx.date, typeStr, tx.amount, tx.category, tx.description]);
+        });
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        XLSX.utils.book_append_sheet(wb, ws, "Transakcije");
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const fileName = 'Transakcije_' + new Date().toISOString().slice(0,19).replace(/:/g, '-') + '.xlsx';
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showNotification('Transakcije so bile izvožene v Excel!', 'success');
+      }
+      document.getElementById('exportExcel').addEventListener('click', exportTransactionsToExcel);
+      function exportTransactionsToExcelAndUploadToDrive() {
+        const data = [['Datum', 'Prihodki / Odhodki / Investicija', 'Znesek', 'Kategorija', 'Opis']];
+        transactions.forEach(tx => {
+          let typeStr = "";
+          if (tx.type === 'prihodek') typeStr = "Prihodki";
+          else if (tx.type === 'odhodki') typeStr = "Odhodki";
+          else if (tx.type === 'investicija') typeStr = "Investicija";
+          data.push([tx.date, typeStr, tx.amount, tx.category, tx.description]);
+        });
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        XLSX.utils.book_append_sheet(wb, ws, "Transakcije");
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const fileName = 'Transakcije_' + new Date().toISOString().slice(0,19).replace(/:/g, '-') + '.xlsx';
+        uploadFileToDrive(blob, fileName);
+      }
+
+      /*********************** GOOGLE DRIVE INTEGRACIJA (PAGE 6) ***********************/
+      function initTokenClient() {
+        tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: 784816782842-t673omcecstsq5uo3b579rbj35462g3k.apps.googleusercontent.com, // Zamenjaj s svojim Google Client ID
+          scope: SCOPES,
+          callback: (response) => {
+            if (response.error) {
+              console.error(response);
+              showNotification("Napaka pri prijavi z Google", "danger");
+              return;
+            }
+            googleAccessToken = response.access_token;
+            showNotification("Prijava z Google uspešna!", "success");
+          }
+        });
+      }
+      document.getElementById('googleSignIn').addEventListener('click', function() {
+        tokenClient.requestAccessToken();
+      });
+      function handleClientLoad() {
+        gapi.load('client:auth2', initClient);
+        initTokenClient();
+      }
+      function initClient() {
+        // Minimalna implementacija – po potrebi razširi za Drive API klice
+      }
+      function uploadFileToDrive(fileBlob, fileName) {
+        if (!googleAccessToken) {
+          alert("Prosimo, prijavite se z Google, preden naložite datoteko.");
+          return;
+        }
+        const accessToken = googleAccessToken;
+        const metadata = {
+          name: fileName,
+          mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        };
+        const formData = new FormData();
+        formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+        formData.append('file', fileBlob);
+        fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+          method: 'POST',
+          headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
+          body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+          console.log('Datoteka uspešno naložena:', data);
+          showNotification('Excel datoteka naložena na Google Drive!', 'success');
+        })
+        .catch(error => {
+          console.error('Napaka pri nalaganju datoteke:', error);
+          showNotification('Napaka pri nalaganju na Google Drive', 'danger');
+        });
+      }
+
+      /*********************** NASTAVITVE KATEGORIJ (DEL NA PAGE 6) ***********************/
+      const defaultCategories = [
+        "Hrana", "Sushi", "Najemnina", "Stroški", "Internet", "Mobitel", "Zavarovanje", "Gorivo", "Avtomobil", "Zdravje",
+        "Skupni račun", "Potovanje", "Plača", "Investicije", "Investicije-Bitcoin", "Nedoločeno", "Trava", "Malica v službi",
+        "Drones", "Tech", "Tobak", "Alkohol", "Za klapu", "Življensko", "Varčevalni račun", "Darila", "Mnčis", "Hrana za psa",
+        "Osebna nega", "Oblačila", "Kava", "Kapice", "Za stanovanje", "Banka", "Gorivo štirikolesnik", "Stroški štirikolesnik",
+        "Padalstvo", "Kategorija", "Stroški banka", "Otrok", "Kolesarstvo"
+      ];
+      let categories = [];
+      function loadCategories() {
+        const stored = localStorage.getItem('categories');
+        if (stored) {
+          categories = JSON.parse(stored);
+        } else {
+          categories = defaultCategories.slice();
+          saveCategories();
+        }
+      }
+      function saveCategories() {
+        localStorage.setItem('categories', JSON.stringify(categories));
+      }
+      function populateCategorySelect() {
+        const select = document.getElementById('category');
+        if (!select) return;
+        select.innerHTML = '';
+        categories.forEach(cat => {
+          const option = document.createElement('option');
+          option.value = cat;
+          option.textContent = cat;
+          select.appendChild(option);
+        });
+      }
+      function renderCategoryList() {
+        const ul = document.getElementById('categoryList');
+        ul.innerHTML = '';
+        const categoriesToShow = showAllCategories ? categories : categories.slice(0, 5);
+        categoriesToShow.forEach((cat, index) => {
+          const li = document.createElement('li');
+          li.className = 'list-group-item d-flex justify-content-between align-items-center';
+          li.textContent = cat;
+          const delBtn = document.createElement('button');
+          delBtn.className = 'btn btn-sm btn-danger';
+          delBtn.textContent = 'Izbriši';
+          delBtn.setAttribute('data-index', index);
+          li.appendChild(delBtn);
+          ul.appendChild(li);
+        });
+      }
+      document.getElementById('addCategory').addEventListener('click', function() {
+        const newCat = document.getElementById('newCategory').value.trim();
+        if (newCat && !categories.includes(newCat)) {
+          categories.push(newCat);
+          saveCategories();
+          populateCategorySelect();
+          renderCategoryList();
+          document.getElementById('newCategory').value = '';
+          showNotification('Kategorija dodana!', 'success');
+        } else {
+          showNotification('Vnesite novo kategorijo, ki še ne obstaja.', 'warning');
+        }
+      });
+      document.getElementById('categoryList').addEventListener('click', function(e) {
+        if (e.target.tagName.toLowerCase() === 'button') {
+          const index = e.target.getAttribute('data-index');
+          if (index !== null) {
+            const cat = categories[index];
+            if (confirm(`Ste prepričani, da želite izbrisati kategorijo "${cat}"?`)) {
+              categories.splice(index, 1);
+              saveCategories();
+              populateCategorySelect();
+              renderCategoryList();
+              showNotification('Kategorija izbrisana!', 'warning');
+            }
+          }
+        }
+      });
+      document.getElementById('toggleCategories').addEventListener('click', function() {
+        showAllCategories = !showAllCategories;
+        renderCategoryList();
+        this.innerText = showAllCategories ? 'Skrij preostale' : 'Prikaži vse';
+      });
+
+      /*********************** TEMA APLIKACIJE ***********************/
+      const themeToggle = document.getElementById('themeToggle');
+      if (localStorage.getItem('theme') === 'dark') {
+        document.body.classList.add('dark-mode');
+        themeToggle.checked = true;
+      } else {
+        document.body.classList.remove('dark-mode');
+        themeToggle.checked = false;
+      }
+      themeToggle.addEventListener('change', function() {
+        if (this.checked) {
+          document.body.classList.add('dark-mode');
+          localStorage.setItem('theme', 'dark');
+        } else {
+          document.body.classList.remove('dark-mode');
+          localStorage.setItem('theme', 'light');
+        }
+      });
+
+      /*********************** OB NALAGANJU STRANI ***********************/
+      loadTransactionsFromLocalStorage();
+      refreshTransactionTable();
+      updateMonthlyOverview();
+      const storedBudget = localStorage.getItem('monthlyBudget');
+      if (storedBudget) monthlyBudget = parseFloat(storedBudget);
+      populateCategorySelect();
+      loadCategories();
+      renderCategoryList();
+
+      /*********************** LETNO POROČILO (PAGE 8) ***********************/
+      function updateAnnualReport() {
+        const reportYear = document.getElementById('reportYear').value;
+        if (!reportYear) return;
+        let totalIncome = 0, totalExpense = 0, totalInvestment = 0;
+        transactions.forEach(tx => {
+          if (typeof tx.date !== 'string') return;
+          const parts = tx.date.trim().split('.');
+          if (parts.length !== 3) return;
+          const year = parts[2];
+          if (year === reportYear) {
+            if (tx.type === 'prihodek') totalIncome += tx.amount;
+            else if (tx.type === 'odhodki') totalExpense += tx.amount;
+            else if (tx.type === 'investicija') totalInvestment += tx.amount;
+          }
+        });
+        let html = `<h4>Poročilo za leto: ${reportYear}</h4>`;
+        html += `<table class="table table-sm"><tbody>`;
+        html += `<tr style="color: green;"><td>Prihodki</td><td>${totalIncome.toFixed(2)} EUR</td></tr>`;
+        html += `<tr style="color: red;"><td>Odhodki</td><td>${totalExpense.toFixed(2)} EUR</td></tr>`;
+        html += `<tr style="color: blue;"><td>Investicije</td><td>${totalInvestment.toFixed(2)} EUR</td></tr>`;
+        html += `<tr><td><strong>Neto</strong></td><td><strong>${(totalIncome - totalExpense).toFixed(2)} EUR</strong></td></tr>`;
+        html += `</tbody></table>`;
+        const expenseByCategory = {};
+        transactions.forEach(tx => {
+          if (typeof tx.date !== 'string') return;
+          const parts = tx.date.trim().split('.');
+          if (parts.length !== 3) return;
+          const year = parts[2];
+          if (year === reportYear && tx.type === 'odhodki')
+            expenseByCategory[tx.category] = (expenseByCategory[tx.category] || 0) + tx.amount;
+        });
+        const sortedExpenseCategories = Object.entries(expenseByCategory).sort((a, b) => b[1] - a[1]);
+        if (sortedExpenseCategories.length > 0) {
+          html += `<h5>Odhodki po kategorijah</h5>`;
+          html += `<table class="table table-sm"><thead><tr><th>Kategorija</th><th>Znesek (EUR)</th></tr></thead><tbody>`;
+          sortedExpenseCategories.forEach(([cat, sum]) => {
+            html += `<tr><td>${cat}</td><td>${sum.toFixed(2)}</td></tr>`;
+          });
+          html += `</tbody></table>`;
+        }
+        const incomeByCategory = {};
+        transactions.forEach(tx => {
+          if (typeof tx.date !== 'string') return;
+          const parts = tx.date.trim().split('.');
+          if (parts.length !== 3) return;
+          const year = parts[2];
+          if (year === reportYear && tx.type === 'prihodek')
+            incomeByCategory[tx.category] = (incomeByCategory[tx.category] || 0) + tx.amount;
+        });
+        const sortedIncomeCategories = Object.entries(incomeByCategory).sort((a, b) => b[1] - a[1]);
+        if (sortedIncomeCategories.length > 0) {
+          html += `<h5>Prihodki po kategorijah</h5>`;
+          html += `<table class="table table-sm"><thead><tr><th>Kategorija</th><th>Znesek (EUR)</th></tr></thead><tbody>`;
+          sortedIncomeCategories.forEach(([cat, sum]) => {
+            html += `<tr><td>${cat}</td><td>${sum.toFixed(2)}</td></tr>`;
+          });
+          html += `</tbody></table>`;
+        }
+        document.getElementById('annualSummary').innerHTML = html;
+        const ctx = document.getElementById('annualChart').getContext('2d');
+        if (window.annualChartInstance) window.annualChartInstance.destroy();
+        window.annualChartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: ['Prihodki', 'Odhodki', 'Investicije'],
+            datasets: [{
+              label: 'Letni pregled',
+              data: [totalIncome, totalExpense, totalInvestment],
+              backgroundColor: [
+                'rgba(0, 128, 0, 0.7)',
+                'rgba(255, 0, 0, 0.7)',
+                'rgba(0, 0, 255, 0.7)'
+              ],
+              borderColor: [
+                'rgba(0, 128, 0, 1)',
+                'rgba(255, 0, 0, 1)',
+                'rgba(0, 0, 255, 1)'
+              ],
+              borderWidth: 1
+            }]
+          },
+          options: { scales: { y: { beginAtZero: true } } }
+        });
+      }
+      document.getElementById('generateAnnualReport').addEventListener('click', updateAnnualReport);
+
+      /*********************** UVOZ/IZVOZ EXCEL (DEL NA NASTAVITVE, PAGE 6) ***********************/
+      document.getElementById('excelFile').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          for (let i = 1; i < jsonData.length; i++) {
+            const row = jsonData[i];
+            if (row.length < 4) continue;
+            let [rawDatum, tip, znesek, kategorija, opis] = row;
+            if (typeof opis === "undefined") { opis = ""; }
+            let tipLower = tip.toString().trim().toLowerCase();
+            let type;
+            if (tipLower === "prihodki" || tipLower === "prihodek") {
+              type = "prihodek";
+            } else if (tipLower === "odhodki" || tipLower === "odhodek") {
+              type = "odhodki";
+            } else if (tipLower === "investicija") {
+              type = "investicija";
+            } else if (tipLower.indexOf("/") !== -1) {
+              const parts = tipLower.split("/");
+              for (let part of parts) {
+                part = part.trim();
+                if (part === "prihodki" || part === "prihodek") {
+                  type = "prihodek";
+                  break;
+                } else if (part === "odhodki" || part === "odhodek") {
+                  type = "odhodki";
+                  break;
+                } else if (part === "investicija") {
+                  type = "investicija";
+                  break;
+                }
+              }
+              if (!type) { type = "odhodki"; }
+            } else {
+              type = "odhodki";
+            }
+            const amount = parseFloat(znesek.toString().replace(',', '.'));
+            let formattedDate = "";
+            if (typeof rawDatum === 'number') {
+              let dateObj = excelDateToJSDate(rawDatum);
+              formattedDate = ("0" + dateObj.getDate()).slice(-2) + "." +
+                              ("0" + (dateObj.getMonth() + 1)).slice(-2) + "." +
+                              dateObj.getFullYear();
+            } else {
+              formattedDate = rawDatum.toString().trim();
+            }
+            const tx = {
+              id: Date.now().toString() + i,
+              date: formattedDate,
+              type: type,
+              category: kategorija,
+              amount: amount,
+              description: opis
+            };
+            transactions.push(tx);
+          }
+          saveTransactionsToLocalStorage();
+          refreshTransactionTable();
+          updateMonthlyOverview();
+          showNotification('Transakcije uvožene iz Excel datoteke!', 'success');
+        };
+        reader.readAsArrayBuffer(file);
+      });
+      function exportTransactionsToExcel() {
+        const data = [['Datum', 'Prihodki / Odhodki / Investicija', 'Znesek', 'Kategorija', 'Opis']];
+        transactions.forEach(tx => {
+          let typeStr = "";
+          if (tx.type === 'prihodek') typeStr = "Prihodki";
+          else if (tx.type === 'odhodki') typeStr = "Odhodki";
+          else if (tx.type === 'investicija') typeStr = "Investicija";
+          data.push([tx.date, typeStr, tx.amount, tx.category, tx.description]);
+        });
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        XLSX.utils.book_append_sheet(wb, ws, "Transakcije");
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const fileName = 'Transakcije_' + new Date().toISOString().slice(0,19).replace(/:/g, '-') + '.xlsx';
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showNotification('Transakcije so bile izvožene v Excel!', 'success');
+      }
+      document.getElementById('exportExcel').addEventListener('click', exportTransactionsToExcel);
+      function exportTransactionsToExcelAndUploadToDrive() {
+        const data = [['Datum', 'Prihodki / Odhodki / Investicija', 'Znesek', 'Kategorija', 'Opis']];
+        transactions.forEach(tx => {
+          let typeStr = "";
+          if (tx.type === 'prihodek') typeStr = "Prihodki";
+          else if (tx.type === 'odhodki') typeStr = "Odhodki";
+          else if (tx.type === 'investicija') typeStr = "Investicija";
+          data.push([tx.date, typeStr, tx.amount, tx.category, tx.description]);
+        });
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        XLSX.utils.book_append_sheet(wb, ws, "Transakcije");
+        const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const fileName = 'Transakcije_' + new Date().toISOString().slice(0,19).replace(/:/g, '-') + '.xlsx';
+        uploadFileToDrive(blob, fileName);
+      }
+
+      /*********************** GOOGLE DRIVE INTEGRACIJA (PAGE 6) ***********************/
+      function initTokenClient() {
+        tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: "YOUR_GOOGLE_CLIENT_ID", // Zamenjaj s svojim Google Client ID
+          scope: SCOPES,
+          callback: (response) => {
+            if (response.error) {
+              console.error(response);
+              showNotification("Napaka pri prijavi z Google", "danger");
+              return;
+            }
+            googleAccessToken = response.access_token;
+            showNotification("Prijava z Google uspešna!", "success");
+          }
+        });
+      }
+      document.getElementById('googleSignIn').addEventListener('click', function() {
+        tokenClient.requestAccessToken();
+      });
+      function handleClientLoad() {
+        gapi.load('client:auth2', initClient);
+        initTokenClient();
+      }
+      function initClient() {
+        // Minimalna implementacija – po potrebi razširi za Drive API klice
+      }
+      function uploadFileToDrive(fileBlob, fileName) {
+        if (!googleAccessToken) {
+          alert("Prosimo, prijavite se z Google, preden naložite datoteko.");
+          return;
+        }
+        const accessToken = googleAccessToken;
+        const metadata = {
+          name: fileName,
+          mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        };
+        const formData = new FormData();
+        formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+        formData.append('file', fileBlob);
+        fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+          method: 'POST',
+          headers: new Headers({ 'Authorization': 'Bearer ' + accessToken }),
+          body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+          console.log('Datoteka uspešno naložena:', data);
+          showNotification('Excel datoteka naložena na Google Drive!', 'success');
+        })
+        .catch(error => {
+          console.error('Napaka pri nalaganju datoteke:', error);
+          showNotification('Napaka pri nalaganju na Google Drive', 'danger');
+        });
+      }
+
+    } // end initApp
+
+    // Če je DOM že naložen, takoj izvedemo, sicer počakamo na DOMContentLoaded
+    if (document.readyState !== 'loading') {
+      initApp();
+    } else {
+      document.addEventListener('DOMContentLoaded', initApp);
+    }
+  </script>
+</body>
+</html>
