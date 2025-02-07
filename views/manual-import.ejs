@@ -1,0 +1,13 @@
+<%- include('partials/header', { title: 'Ročni vnos transakcij', user: user }) %>
+<div class="container">
+  <h1>Ročni vnos transakcij</h1>
+  <p>Prilepite transakcije v naslednji obliki (ena transakcija na vrstico):</p>
+  <p><code>DD.MM.YYYY, tip, znesek, kategorija</code></p>
+  <form action="/manual-import" method="POST">
+    <div class="mb-3">
+      <textarea name="manualData" class="form-control" rows="10" placeholder="07.02.2025, prihodek, 1500.50, Plača&#10;05.02.2025, odhodek, 45.30, Hrana"></textarea>
+    </div>
+    <button type="submit" class="btn btn-primary">Uvozi transakcije</button>
+  </form>
+</div>
+<%- include('partials/footer') %>

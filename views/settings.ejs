@@ -1,0 +1,40 @@
+<%- include('partials/header', { title: 'Nastavitve', user: user }) %>
+<h1>Nastavitve</h1>
+<% if (user) { %>
+  <p>Prijavljeni ste kot: <strong><%= user.displayName %></strong></p>
+<% } else { %>
+  <p>Niste povezani z Google računom.
+    <a class="btn btn-primary" href="/auth/google">Poveži z Google</a>
+  </p>
+<% } %>
+
+<h2>Uvoz/izvoz Excel</h2>
+<form action="/import" method="POST" enctype="multipart/form-data" class="mb-3">
+  <div class="mb-3">
+    <label for="excelFile" class="form-label">Uvozi Excel:</label>
+    <input type="file" name="excelFile" id="excelFile" accept=".xlsx" class="form-control" required>
+  </div>
+  <button type="submit" class="btn btn-success">Uvozi</button>
+</form>
+
+<form action="/export" method="GET" class="mb-3">
+  <button type="submit" class="btn btn-info">Izvozi Excel</button>
+</form>
+
+<h2>Ročni vnos transakcij</h2>
+<p>Prilepite transakcije v naslednji obliki (ena transakcija na vrstico):</p>
+<p><code>DD.MM.YYYY, tip, znesek, kategorija</code></p>
+<a href="/manual-import" class="btn btn-secondary mb-3">Ročni vnos</a>
+
+<h2>Urejanje kategorij</h2>
+<p>Trenutne kategorije:</p>
+<ul class="list-group mb-3">
+  <% categories.forEach(function(cat) { %>
+    <li class="list-group-item"><%= cat %></li>
+  <% }); %>
+</ul>
+
+<h2>Temni način</h2>
+<p>Preklopite na temni način (funkcionalnost ni implementirana v tem primeru).</p>
+
+<%- include('partials/footer') %>

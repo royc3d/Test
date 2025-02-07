@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title><%= title %></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Bootstrap CSS CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+      body { display: flex; margin: 0; padding: 0; }
+      .sidebar {
+        width: 250px; background-color: #343a40; color: #fff; height: 100vh;
+        position: fixed; top: 0; left: 0; padding: 1rem;
+      }
+      .sidebar h3 { color: #fff; }
+      .sidebar a { color: #adb5bd; text-decoration: none; }
+      .sidebar a:hover { color: #fff; }
+      .content { margin-left: 250px; padding: 1rem; width: calc(100% - 250px); }
+    </style>
+  </head>
+  <body>
+    <div class="sidebar">
+      <h3>Finančni Tracker</h3>
+      <% if (user) { %>
+        <p>Prijavljen kot:<br> <strong><%= user.displayName %></strong></p>
+        <a href="/logout" class="btn btn-danger btn-sm mb-3">Odjava</a>
+      <% } else { %>
+        <a href="/auth/google" class="btn btn-primary btn-sm mb-3">Prijava z Google</a>
+      <% } %>
+      <ul class="nav flex-column">
+        <li class="nav-item mb-2"><a class="nav-link" href="/">Vnos transakcij</a></li>
+        <li class="nav-item mb-2"><a class="nav-link" href="/monthly">Mesečni pregled</a></li>
+        <li class="nav-item mb-2"><a class="nav-link" href="/annual">Letno poročilo</a></li>
+        <li class="nav-item mb-2"><a class="nav-link" href="/transactions">Vse transakcije</a></li>
+        <li class="nav-item mb-2"><a class="nav-link" href="/settings">Nastavitve</a></li>
+        <li class="nav-item mb-2"><a class="nav-link" href="/manual-import">Ročni vnos</a></li>
+      </ul>
+    </div>
+    <div class="content">

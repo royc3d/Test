@@ -1,0 +1,197 @@
+<%- include('partials/header', { title: 'Mesečni pregled', user: user }) %>
+<div class="container">
+  <h1 class="mb-4">Pregled meseca <%= selectedMonthName %> <%= selectedYear %></h1>
+
+  <!-- Gumb za kalkulacijo -->
+  <button id="calculateBtn" class="btn btn-warning mb-4">Kalkuliraj</button>
+  <div id="calcResults"></div>
+
+  <!-- Predhodno izračunani seštevki (iz strežnika) -->
+  <div class="row mb-4">
+    <div class="col">
+      <h4 class="text-success">Prihodki: <%= incomeSum.toFixed(2) %> €</h4>
+    </div>
+    <div class="col">
+      <h4 class="text-danger">Odhodek: <%= expenseSum.toFixed(2) %> €</h4>
+    </div>
+    <div class="col">
+      <h4 class="text-primary">Investicije: <%= investmentSum.toFixed(2) %> €</h4>
+    </div>
+  </div>
+
+  <!-- Filter za mesec in leto -->
+  <form action="/monthly" method="GET" class="row g-3 mb-4">
+    <div class="col-md-6">
+      <label for="month" class="form-label">Mesec:</label>
+      <% const monthNames = ["Januar", "Februar", "Marec", "April", "Maj", "Junij", "Julij", "Avgust", "September", "Oktober", "November", "December"]; %>
+      <select name="month" id="month" class="form-select">
+        <% monthNames.forEach(function(m, i) { %>
+          <option value="<%= i %>" <%= (i === selectedMonth) ? "selected" : "" %>><%= m %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div class="col-md-6">
+      <label for="year" class="form-label">Leto:</label>
+      <select name="year" id="year" class="form-select">
+        <% 
+           const currentYear = new Date().getFullYear();
+           for (let y = 2020; y <= currentYear; y++) { 
+        %>
+          <option value="<%= y %>" <%= (y === selectedYear) ? "selected" : "" %>><%= y %></option>
+        <% } %>
+      </select>
+    </div>
+    <div class="col-12">
+      <button type="submit" class="btn btn-primary">Filtriraj</button>
+    </div>
+  </form>
+
+  <!-- Tabela odhodkov po kategorijah -->
+  <h3 class="mb-3">Odhodki po kategorijah</h3>
+  <% if (groupedExpenses.length === 0) { %>
+    <p>Ni podatkov za odhodke.</p>
+  <% } else { %>
+    <table class="table table-striped mb-4">
+      <thead class="table-dark">
+        <tr>
+          <th>Kategorija</th>
+          <th>Skupaj (€)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% groupedExpenses.forEach(function(item) { %>
+          <tr>
+            <td><%= item.category %></td>
+            <td><%= item.total.toFixed(2) %> €</td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+
+  <!-- Horizontalni stolpični graf odhodkov -->
+  <h3 class="mb-3">Graf odhodkov po kategorijah</h3>
+  <canvas id="expensesChart" width="400" height="200"></canvas>
+
+  <!-- Zadnjih 10 transakcij -->
+  <h3 class="mt-5">Zadnjih 10 transakcij</h3>
+  <table class="table table-bordered">
+    <thead class="table-dark">
+      <tr>
+        <th>Datum</th>
+        <th>Tip</th>
+        <th>Znesek</th>
+        <th>Kategorija</th>
+      </tr>
+    </thead>
+    <tbody id="last10Transactions">
+      <% last10Transactions.forEach(function(t) { %>
+        <% 
+          let rowClass = "";
+          if(t.type === "odhodek") { rowClass = "table-danger"; }
+          else if(t.type === "prihodek") { rowClass = "table-success"; }
+          else if(t.type === "investicija") { rowClass = "table-info"; }
+        %>
+        <tr class="<%= rowClass %>">
+          <td><%= new Date(t.date).toLocaleDateString('sl-SI', { day: '2-digit', month: '2-digit', year: 'numeric' }) %></td>
+          <td><%= t.type %></td>
+          <td><%= t.amount.toFixed(2) %> €</td>
+          <td><%= t.category %></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+  <% if (allMonthlyTransactions.length > 10) { %>
+    <button id="showAllBtn" class="btn btn-secondary">Prikaži vse transakcije</button>
+    <div id="allTransactions" style="display: none;" class="mt-3">
+      <h3>Vse transakcije</h3>
+      <table class="table table-bordered">
+        <thead class="table-dark">
+          <tr>
+            <th>Datum</th>
+            <th>Tip</th>
+            <th>Znesek</th>
+            <th>Kategorija</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% allMonthlyTransactions.forEach(function(t) { %>
+            <% 
+              let rowClass = "";
+              if(t.type === "odhodek") { rowClass = "table-danger"; }
+              else if(t.type === "prihodek") { rowClass = "table-success"; }
+              else if(t.type === "investicija") { rowClass = "table-info"; }
+            %>
+            <tr class="<%= rowClass %>">
+              <td><%= new Date(t.date).toLocaleDateString('sl-SI', { day: '2-digit', month: '2-digit', year: 'numeric' }) %></td>
+              <td><%= t.type %></td>
+              <td><%= t.amount.toFixed(2) %> €</td>
+              <td><%= t.category %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  // Graf za odhodke
+  const groupedExpenses = <%- JSON.stringify(groupedExpenses) %>;
+  const expenseLabels = groupedExpenses.map(item => item.category);
+  const expenseData = groupedExpenses.map(item => item.total);
+  const ctxExpenses = document.getElementById('expensesChart').getContext('2d');
+  new Chart(ctxExpenses, {
+    type: 'bar',
+    data: {
+      labels: expenseLabels,
+      datasets: [{
+        label: 'Odhodki (€)',
+        data: expenseData,
+        backgroundColor: 'rgba(220,53,69,0.7)',
+        borderColor: 'rgba(220,53,69,1)',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      scales: { x: { beginAtZero: true } }
+    }
+  });
+  
+  // Gumb za prikaz/skritje vseh transakcij
+  const showAllBtn = document.getElementById('showAllBtn');
+  if (showAllBtn) {
+    showAllBtn.addEventListener('click', () => {
+      const allTransactionsDiv = document.getElementById('allTransactions');
+      if (allTransactionsDiv.style.display === 'none') {
+        allTransactionsDiv.style.display = 'block';
+        showAllBtn.textContent = 'Skrij transakcije';
+      } else {
+        allTransactionsDiv.style.display = 'none';
+        showAllBtn.textContent = 'Prikaži vse transakcije';
+      }
+    });
+  }
+  
+  // Gumb "Kalkuliraj" - ročni izračun seštevkov
+  const allTransactionsData = <%- JSON.stringify(allMonthlyTransactions) %>;
+  function calculateTotals() {
+    let income = 0, expense = 0, investment = 0;
+    allTransactionsData.forEach(tx => {
+      if (tx.type === 'prihodek') income += tx.amount;
+      else if (tx.type === 'odhodek') expense += tx.amount;
+      else if (tx.type === 'investicija') investment += tx.amount;
+    });
+    document.getElementById('calcResults').innerHTML = `
+      <h4>Izračunani seštevki (manualni izračun):</h4>
+      <p class="text-success">Prihodki: ${income.toFixed(2)} €</p>
+      <p class="text-danger">Odhodki: ${expense.toFixed(2)} €</p>
+      <p class="text-primary">Investicije: ${investment.toFixed(2)} €</p>
+    `;
+  }
+  document.getElementById('calculateBtn').addEventListener('click', calculateTotals);
+</script>
+<%- include('partials/footer') %>

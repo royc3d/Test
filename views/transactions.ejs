@@ -1,0 +1,31 @@
+<%- include('partials/header', { title: 'Vse transakcije', user: user }) %>
+<h1>Vse transakcije</h1>
+<% if (transactions.length === 0) { %>
+  <p>Ni vnešenih transakcij.</p>
+<% } else { %>
+  <table class="table table-bordered table-hover">
+    <thead class="table-dark">
+      <tr>
+        <th>Datum</th>
+        <th>Tip</th>
+        <th>Znesek</th>
+        <th>Kategorija</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% transactions.forEach(function(t) { %>
+        <tr>
+          <td><%= new Date(t.date).toLocaleDateString('sl-SI', { day: '2-digit', month: '2-digit', year: 'numeric' }) %></td>
+          <td><%= t.type %></td>
+          <td><%= t.amount.toFixed(2) %> €</td>
+          <td><%= t.category %></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+  <a class="btn btn-info" href="/transactions?page=<%= page + 1 %>">Naslednja stran</a>
+<% } %>
+<form action="/delete-all" method="POST" onsubmit="return confirm('Ste prepričani, da želite izbrisati vse transakcije?');" class="mt-3">
+  <button type="submit" class="btn btn-danger">Izbriši vse transakcije</button>
+</form>
+<%- include('partials/footer') %>

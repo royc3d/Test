@@ -1,0 +1,163 @@
+<%- include('partials/header', { title: 'Letno poročilo', user: user }) %>
+<div class="container">
+  <h1 class="mb-4">Letno poročilo za leto <%= selectedYear %></h1>
+
+  <!-- Seštevki -->
+  <div class="row mb-4">
+    <div class="col">
+      <h4 class="text-success">Prihodki: <%= incomeSum.toFixed(2) %> €</h4>
+    </div>
+    <div class="col">
+      <h4 class="text-danger">Odhodki: <%= expenseSum.toFixed(2) %> €</h4>
+    </div>
+    <div class="col">
+      <h4 class="text-primary">Investicije: <%= investmentSum.toFixed(2) %> €</h4>
+    </div>
+  </div>
+
+  <!-- Filter za leto -->
+  <form action="/annual" method="GET" class="row g-3 mb-4">
+    <div class="col-md-6">
+      <label for="year" class="form-label">Leto:</label>
+      <select name="year" id="year" class="form-select">
+        <% 
+           const currentYear = new Date().getFullYear();
+           for (let y = 2020; y <= currentYear; y++) { 
+        %>
+          <option value="<%= y %>" <%= (y === selectedYear) ? "selected" : "" %>><%= y %></option>
+        <% } %>
+      </select>
+    </div>
+    <div class="col-12">
+      <button type="submit" class="btn btn-primary">Filtriraj</button>
+    </div>
+  </form>
+
+  <!-- Tabela odhodkov po kategorijah -->
+  <h3 class="mb-3">Odhodki po kategorijah</h3>
+  <% if (groupedExpenses.length === 0) { %>
+    <p>Ni podatkov za odhodke.</p>
+  <% } else { %>
+    <table class="table table-striped mb-4">
+      <thead class="table-dark">
+        <tr>
+          <th>Kategorija</th>
+          <th>Skupaj (€)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% groupedExpenses.forEach(function(item) { %>
+          <tr>
+            <td><%= item.category %></td>
+            <td><%= item.total.toFixed(2) %> €</td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+
+  <!-- Graf za odhodke -->
+  <h3 class="mb-3">Graf odhodkov po kategorijah</h3>
+  <canvas id="expensesChart" width="400" height="200"></canvas>
+
+  <!-- Tabela prihodkov po kategorijah -->
+  <h3 class="mb-3 mt-5">Prihodki po kategorijah</h3>
+  <% if (groupedIncomes.length === 0) { %>
+    <p>Ni podatkov za prihodke.</p>
+  <% } else { %>
+    <table class="table table-striped mb-4">
+      <thead class="table-dark">
+        <tr>
+          <th>Kategorija</th>
+          <th>Skupaj (€)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% groupedIncomes.forEach(function(item) { %>
+          <tr>
+            <td><%= item.category %></td>
+            <td><%= item.total.toFixed(2) %> €</td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+
+  <!-- Graf za prihodke -->
+  <h3 class="mb-3">Graf prihodkov po kategorijah</h3>
+  <canvas id="incomesChart" width="400" height="200"></canvas>
+
+  <!-- Tabela vseh transakcij -->
+  <h3 class="mt-5">Vse transakcije</h3>
+  <table class="table table-bordered">
+    <thead class="table-dark">
+      <tr>
+        <th>Datum</th>
+        <th>Tip</th>
+        <th>Znesek</th>
+        <th>Kategorija</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% transactions.forEach(function(t) { %>
+        <tr>
+          <td><%= new Date(t.date).toLocaleDateString('sl-SI', { day: '2-digit', month: '2-digit', year: 'numeric' }) %></td>
+          <td><%= t.type %></td>
+          <td><%= t.amount.toFixed(2) %> €</td>
+          <td><%= t.category %></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  // Graf za odhodke
+  const groupedExpenses = <%- JSON.stringify(groupedExpenses) %>;
+  const expenseLabels = groupedExpenses.map(item => item.category);
+  const expenseData = groupedExpenses.map(item => item.total);
+  const ctxExpenses = document.getElementById('expensesChart').getContext('2d');
+  new Chart(ctxExpenses, {
+    type: 'bar',
+    data: {
+      labels: expenseLabels,
+      datasets: [{
+        label: 'Odhodki (€)',
+        data: expenseData,
+        backgroundColor: 'rgba(220,53,69,0.7)',
+        borderColor: 'rgba(220,53,69,1)',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      scales: { x: { beginAtZero: true } }
+    }
+  });
+
+  // Graf za prihodke
+  const groupedIncomes = <%- JSON.stringify(groupedIncomes) %>;
+  const incomeLabels = groupedIncomes.map(item => item.category);
+  const incomeData = groupedIncomes.map(item => item.total);
+  const ctxIncomes = document.getElementById('incomesChart').getContext('2d');
+  new Chart(ctxIncomes, {
+    type: 'bar',
+    data: {
+      labels: incomeLabels,
+      datasets: [{
+        label: 'Prihodki (€)',
+        data: incomeData,
+        backgroundColor: 'rgba(40,167,69,0.7)',
+        borderColor: 'rgba(40,167,69,1)',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      scales: { x: { beginAtZero: true } }
+    }
+  });
+</script>
+<%- include('partials/footer') %>
